@@ -1,0 +1,80 @@
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "baseUrl": "./",
+    "paths": {
+      "@/*": [
+        "./*"
+      ],
+      "@type/*": [
+        "./src/lib/type/*"
+      ],
+      "@helpers/*": [
+        "./src/lib/helpers/*"
+      ],
+      "@log/*": [
+        "./src/log/*"
+      ],
+      "@interfaces/*": [
+        "./src/lib/interfaces/*"
+      ],
+      "@utils/*": [
+        "./src/lib/utils/*"
+      ],
+      "@components/*": [
+        "./src/components/*"
+      ],
+      "@requests/*": [
+        "./src/requests/*"
+      ],
+      "@models/*": [
+        "./src/models/*"
+      ],
+      "@redux-store/*": [
+        "./src/redux-store/*"
+      ],
+      "@config/*": [
+        "./src/config/*"
+      ],
+      "@services/*": [
+        "./src/lib/services/*"
+      ],
+      "@zod-schema/*": [
+        "./src/lib/zod-schema/*"
+      ]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts",
+    "**/*.mts",
+    "src/**/*"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}
