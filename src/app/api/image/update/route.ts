@@ -9,7 +9,7 @@ import { IMAGE_STORAGE_PATH } from "@utils/constants";
  * PUT /api/image/replace?username=...&previousFilename=...
  */
 export async function PUT(req: NextRequest) {
-  const authResponse = await authenticateToken(req);
+  const authResponse = await authenticateToken(req, "articles");
   if (authResponse) return authResponse;
 
   const searchParams = req.nextUrl.searchParams;

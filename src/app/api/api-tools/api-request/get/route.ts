@@ -4,7 +4,7 @@ import { getApis } from "@/src/lib/services/apis";
 import { NextRequest } from "next/server";
 
 export async function GET(req: NextRequest) {
-  const authResponse = await authenticateToken(req);
+  const authResponse = await authenticateToken(req, "api");
   if (authResponse) return authResponse;
   const { searchParams } = req.nextUrl;
   const collectionId = searchParams.get("collectionId");

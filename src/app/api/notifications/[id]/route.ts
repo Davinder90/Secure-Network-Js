@@ -12,7 +12,7 @@ interface RouteContext {
  * Deletes an individual notification by ID.
  */
 export async function DELETE(req: NextRequest, { params }: RouteContext) {
-  const authResponse = await authenticateToken(req);
+  const authResponse = await authenticateToken(req, "articles");
   if (authResponse) return authResponse;
 
   const userId = (req as IAuthTokenRequest).user.id;

@@ -32,11 +32,10 @@ export const handleGetUserAllowance = async () => {
   return handleResponse(result);
 };
 
-export const handleGetUserProfile = async () => {
-  const result = await asyncResponseHandler(() =>{
-    return jsAxiosInstance.get(JS_SERVER_PATHS.USER_PROFILE)
-  }
-  ) as AxiosResponse;
+export const handleGetUserProfile = async (page: number = 1, limit: number = 5) => {
+  const result = (await asyncResponseHandler(() =>
+    jsAxiosInstance.get(`${JS_SERVER_PATHS.USER_PROFILE}?page=${page}&limit=${limit}`)
+  )) as AxiosResponse;
   return handleResponse(result);
 };
 

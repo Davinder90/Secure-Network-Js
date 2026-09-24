@@ -1,4 +1,3 @@
-import React from "react";
 import {
   CheckCircleIcon,
   XCircleIcon,
@@ -8,84 +7,80 @@ import {
 
 export const toastOptions = {
   duration: 4000,
-  // Base style with modern glassmorphic look & smooth micro-interactions
+
   style: {
-    borderRadius: "0.75rem", // 12px
-    fontSize: "0.875rem",
+    borderRadius: "6px",
+    background: "#ffffff",
+    color: "#1f2937",
+    fontSize: "15px",
     fontWeight: 500,
-    letterSpacing: "-0.01em",
-    padding: "12px 16px",
-    display: "flex",
-    alignItems: "center",
-    gap: "12px",
-    backdropFilter: "blur(12px)",
-    WebkitBackdropFilter: "blur(12px)",
-    boxShadow: "0 10px 30px -5px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(255, 255, 255, 0.05)",
-    transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
-    cursor: "pointer",
+    padding: "16px 18px",
+    minWidth: "380px",
+    boxShadow: "0 4px 15px rgba(0, 0, 0, 0.12)",
+    border: "1px solid #e5e7eb",
   },
 
-  // Success: Vibrant Emerald Glass
   success: {
     duration: 3500,
+
     icon: (
-      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500/15 ring-1 ring-emerald-500/30">
-        <CheckCircleIcon className="h-4 w-4 text-emerald-400" />
+      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-green-500">
+        <CheckCircleIcon className="h-6 w-6 text-white" />
       </div>
     ),
+
+    className: "toast-success",
+
     style: {
-      background: "rgba(6, 78, 59, 0.85)", // dark emerald backdrop
-      color: "#ecfdf5",
-      border: "1px solid rgba(52, 211, 153, 0.35)",
-      boxShadow: "0 10px 25px -5px rgba(16, 185, 129, 0.2), 0 0 0 1px rgba(52, 211, 153, 0.1)",
+      borderBottom: "4px solid #22c55e",
     },
   },
 
-  // Error: Crimson Glow Glass
   error: {
-    duration: 5000, // slightly longer for errors
+    duration: 5000,
+
     icon: (
-      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-rose-500/15 ring-1 ring-rose-500/30">
-        <XCircleIcon className="h-4 w-4 text-rose-400" />
+      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-red-500">
+        <XCircleIcon className="h-6 w-6 text-white" />
       </div>
     ),
+
+    className: "toast-error",
+
     style: {
-      background: "rgba(136, 19, 55, 0.85)", // dark rose backdrop
-      color: "#fff1f2",
-      border: "1px solid rgba(251, 113, 133, 0.35)",
-      boxShadow: "0 10px 25px -5px rgba(244, 63, 94, 0.2), 0 0 0 1px rgba(251, 113, 133, 0.1)",
+      borderBottom: "4px solid #ef4444",
     },
   },
 
-  // Warning: Amber Glow Glass
   warning: {
     duration: 4500,
+
     icon: (
-      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-500/15 ring-1 ring-amber-500/30">
-        <ExclamationTriangleIcon className="h-4 w-4 text-amber-300" />
+      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-yellow-400">
+        <ExclamationTriangleIcon className="h-6 w-6 text-white" />
       </div>
     ),
+
+    className: "toast-warning",
+
     style: {
-      background: "rgba(120, 53, 15, 0.85)", // dark amber backdrop
-      color: "#fffbeb",
-      border: "1px solid rgba(251, 191, 36, 0.35)",
-      boxShadow: "0 10px 25px -5px rgba(245, 158, 11, 0.2), 0 0 0 1px rgba(251, 191, 36, 0.1)",
+      borderBottom: "4px solid #eab308",
     },
   },
 
-  // Info: Cyan/Sky Blue Glass
   info: {
     duration: 4000,
+
     icon: (
-      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-cyan-500/15 ring-1 ring-cyan-500/30">
-        <InformationCircleIcon className="h-4 w-4 text-cyan-300" />
+      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-sky-500">
+        <InformationCircleIcon className="h-6 w-6 text-white" />
       </div>
     ),
+
+    className: "toast-info",
+
     style: {
-      background: "rgba(12, 74, 110, 0.85)", // dark sky backdrop
-      color: "#f0f9ff",
-      border: "1px solid rgba(56, 189, 248, 0.35)",
-      boxShadow: "0 10px 25px -5px rgba(14, 165, 233, 0.2), 0 0 0 1px rgba(56, 189, 248, 0.1)",
+      borderBottom: "4px solid #3b9ed0",
     },
   },
 };

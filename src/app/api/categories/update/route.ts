@@ -5,25 +5,29 @@ import { updateCategory } from "@/src/lib/services/category";
 import UserModel, { UserRole } from "@/src/models/user.model";
 
 /**
- * PATCH /api/category/update
- * Body: { id: string, name?: string, description?: string, icon?: string, isFeatured?: boolean, isActive?: boolean }
+ * PATCH /api/categories/update
+ * Body payload: { id: string, name?: string, description?: string, icon?: string, isFeatured?: boolean, isActive?: boolean }
  */
 export async function PATCH(req: NextRequest) {
-  const authResponse = await authenticateToken(req);
+  // 1. Authenticate token (verifying system-wide administrator role)
+  const authResponse = await authenticateToken(req, "pass");
   if (authResponse) return authResponse;
 
-  const userId = (req as IAuthTokenRequest).user.id;
-  const user = await UserModel.findById(userId).select("role");
+  const adminId = (req as IAuthTokenRequest).user.id;
+  const admin = await UserModel.findById(adminId).select("role");
 
-  if (!user || user.role !== UserRole.Administrator) {
+  // 2. Authorize administrator privilege
+  if (!admin || admin.role !== UserRole.Administrator) {
     return new Response(
-      JSON.stringify({ error: "Unauthorized: Administrator permissions required" }),
+      JSON.stringify({ error: "Forbidden: Administrator permissions required" }),
       { status: 403, headers: { "Content-Type": "application/json" } }
     );
   }
 
+  // 3. Parse payload from request body
   const body = await req.json();
   const { id, ...updateData } = body;
 
+  // 4. Delegate to update service
   return await updateCategory(id, updateData);
 }

@@ -6,7 +6,7 @@ import { parseSingleFile } from "src/lib/middleware/formidable.middleware";
 import { IMAGE_STORAGE_PATH } from "@utils/constants";
 
 export async function POST(req: NextRequest) {
-  const authResponse = await authenticateToken(req);
+  const authResponse = await authenticateToken(req, "articles");
   if (authResponse) return authResponse;
 
   const searchParams = req.nextUrl.searchParams;

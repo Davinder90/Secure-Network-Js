@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
  * Publishes a new article or saves a draft.
  */
 export async function POST(req: NextRequest) {
-  const authResponse = await authenticateToken(req);
+  const authResponse = await authenticateToken(req, "articles");
   if (authResponse) return authResponse;
 
   const userId = (req as IAuthTokenRequest).user.id;

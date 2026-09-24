@@ -7,7 +7,7 @@ import { getUnreadNotificationsCount } from "@/src/lib/services/notification";
  * GET /api/notifications/unread-count
  */
 export async function GET(req: NextRequest) {
-  const authResponse = await authenticateToken(req);
+  const authResponse = await authenticateToken(req, "articles");
   if (authResponse) return authResponse;
 
   const userId = (req as IAuthTokenRequest).user.id;

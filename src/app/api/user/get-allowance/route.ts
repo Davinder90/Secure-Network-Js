@@ -4,7 +4,7 @@ import { IAuthTokenRequest } from "@/src/lib/interfaces/common.interfaces";
 import { getUserAllowance } from "@/src/lib/services/user";
 
 export async function GET(req: NextRequest) {
-  const authResponse = await authenticateToken(req);
+  const authResponse = await authenticateToken(req, "pass");
   if (authResponse) return authResponse;
   const userId = (req as IAuthTokenRequest).user.id;
   return await getUserAllowance(userId);

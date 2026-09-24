@@ -113,9 +113,16 @@ export const handleCreateCategory = async (body: object) => {
   return handleResponse(result);
 };
 
+export const handleUpdateCategory = async (id: string, data: object) => {
+  const result = (await asyncResponseHandler(() =>
+    jsAxiosInstance.patch(JS_SERVER_PATHS.UPDATE_CATEGORY, data = {id, ...data})
+  )) as AxiosResponse;
+  return handleResponse(result);
+};
+
 export const handleDeleteCategory = async (id: string) => {
   const result = (await asyncResponseHandler(() =>
-    jsAxiosInstance.delete(JS_SERVER_PATHS.GET_CATEGORIES, {data: {id}})
+    jsAxiosInstance.delete(JS_SERVER_PATHS.DELETE_CATEGORY, {data: {id}})
   )) as AxiosResponse;
   return handleResponse(result);
 };

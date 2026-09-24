@@ -4,11 +4,16 @@
 @tailwind components; */
 @tailwind utilities;
 
-
-
+.toast-success,
+.toast-error,
+.toast-warning,
+.toast-info {
+  position: relative !important;
+  overflow: hidden !important;
+}
 
 .sidebar-scrollbar::-webkit-scrollbar {
-  width: 6px; 
+  width: 6px;
 }
 
 .sidebar-scrollbar::-webkit-scrollbar-track {
@@ -26,16 +31,14 @@
   scrollbar-color: white rgba(0, 0, 0, 0.3);
 }
 
-
-
 .monaco-editor .monaco-editor-background {
-  border-radius: 8px; 
-  border: 1px solid #555; 
+  border-radius: 8px;
+  border: 1px solid #555;
   transition: border 0.2s ease-in-out;
 }
 
 .monaco-editor:focus-within .monaco-editor-background {
-  border: 1px solid #BBB; 
+  border: 1px solid #bbb;
 }
 
 /* Thin modern scrollbar */

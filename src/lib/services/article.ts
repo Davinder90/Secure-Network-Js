@@ -12,7 +12,6 @@ import NotificationModel from "@/src/models/notification.model";
 import CategoryModel from "@/src/models/category.model";
 import { dbConnection } from "@/src/config/dbConnection";
 import { encryptId, decryptId } from "@/src/lib/helpers/crypto.helper";
-import { getImage } from "../helpers/file.helpers";
 
 /* -------------------------------------------------------------------------- */
 /*                                INTERFACES                                  */
@@ -67,7 +66,7 @@ const generateUniqueSlug = async (title: string): Promise<string> => {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Creates a new article or saves a draft. Returns encrypted ID for the frontend.
+ * Creates a new article or saves a draft, synchronizing author post counts and category metrics.
  */
 export const createArticle = async (
   userId: string,
@@ -98,6 +97,11 @@ export const createArticle = async (
       const articleId = await generateUniqueSlug(title);
       const normalizedTags = (tags || []).map((t) => t.trim().toLowerCase());
 
+      const decryptCategoryId = decryptId(payload.category as string);
+      const Category = decryptCategoryId && mongoose.isValidObjectId(decryptCategoryId)
+        ? new mongoose.Types.ObjectId(decryptCategoryId)
+        : undefined;
+
       const article = new ArticleModel({
         articleId,
         title: title.trim(),
@@ -105,7 +109,7 @@ export const createArticle = async (
         banner: banner?.trim() || "",
         content: content || [],
         tags: normalizedTags,
-        category: category && mongoose.isValidObjectId(category) ? category : undefined,
+        category: Category,
         author: new mongoose.Types.ObjectId(userId),
         draft: Boolean(draft),
       });
@@ -118,8 +122,8 @@ export const createArticle = async (
           $push: { articles: article._id },
           $inc: { "articleStats.totalArticles": draft ? 0 : 1 },
         }),
-        category && mongoose.isValidObjectId(category)
-          ? CategoryModel.findByIdAndUpdate(category, { $inc: { articleCount: draft ? 0 : 1 } })
+        category && mongoose.isValidObjectId(Category)
+          ? CategoryModel.findByIdAndUpdate(Category, { $inc: { articleCount: draft ? 0 : 1 } })
           : Promise.resolve(),
       ]);
 
@@ -127,7 +131,6 @@ export const createArticle = async (
         message: draft ? "Draft saved successfully" : "Article published successfully",
         status_code: StatusCodes.CREATED,
         data: {
-          // 🛡️ Encrypted identifier provided to client (never raw _id)
           id: encryptId(article._id),
           articleId: article.articleId,
           title: article.title,
@@ -148,7 +151,7 @@ export const createArticle = async (
 /* -------------------------------------------------------------------------- */
 
 /**
- * Updates an article. Accepts either an encrypted ID token or an article slug.
+ * Updates an article. Recalculates category articleCount on publish/unpublish.
  */
 export const updateArticle = async (
   userId: string,
@@ -159,7 +162,6 @@ export const updateArticle = async (
 
   const result = await asyncRequestHandler(
     async (): Promise<IResponseObject> => {
-      // 1. Decrypt token or resolve by slug
       const decryptedDocId = decryptId(slugOrEncryptedId);
       const isObjectId = mongoose.isValidObjectId(decryptedDocId || slugOrEncryptedId);
 
@@ -183,7 +185,13 @@ export const updateArticle = async (
       }
 
       const wasDraft = article.draft;
-      const isNowPublished = payload.draft === false && wasDraft;
+      const willBeDraft = payload.draft !== undefined ? Boolean(payload.draft) : wasDraft;
+
+      const previousCategory = article.category;
+      const decryptCategoryId = decryptId(payload.category as string);
+      const nextCategory = decryptCategoryId && mongoose.isValidObjectId(decryptCategoryId)
+        ? new mongoose.Types.ObjectId(decryptCategoryId)
+        : undefined;
 
       // Apply Updates
       if (payload.title) article.title = payload.title.trim();
@@ -191,28 +199,39 @@ export const updateArticle = async (
       if (payload.banner !== undefined) article.banner = payload.banner.trim();
       if (payload.content) article.content = payload.content;
       if (payload.tags) article.tags = payload.tags.map((t) => t.trim().toLowerCase());
-      if (payload.category !== undefined) {
-        article.category = mongoose.isValidObjectId(payload.category)
-          ? new mongoose.Types.ObjectId(payload.category)
-          : undefined;
-      }
-      if (payload.draft !== undefined) article.draft = Boolean(payload.draft);
+      if (payload.category !== undefined) article.category = nextCategory;
+      if (payload.draft !== undefined) article.draft = willBeDraft;
 
       await article.save();
 
-      // If transitioning from draft -> published, increment post counts
-      if (isNowPublished) {
-        await UserModel.findByIdAndUpdate(userId, {
-          $inc: { "articleStats.totalArticles": 1 },
-        });
+      /* ------------------------------------------------------------------ */
+      /*                  SYNCHRONIZE CATEGORIES & COUNTS                   */
+      /* ------------------------------------------------------------------ */
+
+      // Scenario A: Article transitions from Draft -> Published
+      if (wasDraft && !willBeDraft) {
+        await UserModel.findByIdAndUpdate(userId, { $inc: { "articleStats.totalArticles": 1 } });
         if (article.category) {
-          await CategoryModel.findByIdAndUpdate(article.category, {
-            $inc: { articleCount: 1 },
-          });
+          await CategoryModel.findByIdAndUpdate(article.category, { $inc: { articleCount: 1 } });
         }
       }
+      // Scenario B: Article transitions from Published -> Draft (Unpublished)
+      else if (!wasDraft && willBeDraft) {
+        await UserModel.findByIdAndUpdate(userId, { $inc: { "articleStats.totalArticles": -1 } });
+        if (article.category) {
+          await CategoryModel.findByIdAndUpdate(article.category, { $inc: { articleCount: -1 } });
+        }
+      }
+      // Scenario C: Article category was changed while remaining published
+      else if (!willBeDraft && previousCategory?.toString() !== nextCategory?.toString()) {
+        if (previousCategory) {
+          await CategoryModel.findByIdAndUpdate(previousCategory, { $inc: { articleCount: -1 } });
+        }
+        if (nextCategory) {
+          await CategoryModel.findByIdAndUpdate(nextCategory, { $inc: { articleCount: 1 } });
+        }
+      } 
 
-      // Convert to plain object and replace _id with encrypted ID
       const articleObj = article.toObject();
       const sanitizedArticle = {
         ...articleObj,
@@ -237,10 +256,6 @@ export const updateArticle = async (
 /*                       FETCH ARTICLES FEED & SEARCH                         */
 /* -------------------------------------------------------------------------- */
 
-/**
- * Retrieves paginated articles with tag filtering, search, and author info.
- * Maps encryptedId onto every record so database ObjectIds remain hidden.
- */
 export const getArticlesFeed = async (options: IArticleFeedQuery = {}) => {
   await dbConnection();
 
@@ -254,17 +269,14 @@ export const getArticlesFeed = async (options: IArticleFeedQuery = {}) => {
         draft: options.draft !== undefined ? options.draft : false,
       };
 
-      // Tag Filter
       if (options.tag) {
         filter.tags = options.tag.trim().toLowerCase();
       }
 
-      // Category Filter
       if (options.category && mongoose.isValidObjectId(options.category)) {
         filter.category = new mongoose.Types.ObjectId(options.category);
       }
 
-      // Author Filter (Handles encrypted ID token or raw ObjectId)
       if (options.authorId) {
         const decryptedAuthorId = decryptId(options.authorId) || options.authorId;
         if (mongoose.isValidObjectId(decryptedAuthorId)) {
@@ -272,7 +284,6 @@ export const getArticlesFeed = async (options: IArticleFeedQuery = {}) => {
         }
       }
 
-      // Keyword Search
       if (options.query && options.query.trim()) {
         const regex = new RegExp(options.query.trim(), "i");
         filter.$or = [{ title: regex }, { description: regex }, { tags: regex }];
@@ -291,14 +302,13 @@ export const getArticlesFeed = async (options: IArticleFeedQuery = {}) => {
             select: "name slug icon",
           })
           .select("articleId title description banner tags activity publishedAt author category draft")
-          .sort({ isFeatured: -1, publishedAt: -1 })
+          .sort({ publishedAt: -1 })
           .skip(skip)
           .limit(limit)
           .lean(),
         ArticleModel.countDocuments(filter),
       ]);
 
-      // 🛡️ Map encrypted IDs to each item in the feed
       const sanitizedArticles = articles.map((art: any) => {
         const encrypted = encryptId(art._id);
         const { _id, ...rest } = art;
@@ -336,9 +346,6 @@ export const getArticlesFeed = async (options: IArticleFeedQuery = {}) => {
 /*                        FETCH TRENDING ARTICLES                             */
 /* -------------------------------------------------------------------------- */
 
-/**
- * Retrieves top ranked articles based on total reads and appreciations with encrypted ID.
- */
 export const getTrendingArticles = async (limit: number = 5) => {
   await dbConnection();
 
@@ -355,7 +362,6 @@ export const getTrendingArticles = async (limit: number = 5) => {
         .limit(Math.max(1, Math.min(20, limit)))
         .lean();
 
-      // 🛡️ Map encrypted IDs for trending rankings
       const sanitizedTrending = articles.map((art: any) => {
         const encrypted = encryptId(art._id);
         const { _id, ...rest } = art;
@@ -382,10 +388,6 @@ export const getTrendingArticles = async (limit: number = 5) => {
 /*                     GET SINGLE ARTICLE (READER VIEW)                       */
 /* -------------------------------------------------------------------------- */
 
-/**
- * Retrieves full article details for reader view and increments read count.
- * Seamlessly resolves either an encrypted token or a public slug.
- */
 export const getArticleBySlugOrId = async (
   slugOrEncryptedId: string,
   mode: "view" | "edit" = "view"
@@ -394,7 +396,6 @@ export const getArticleBySlugOrId = async (
 
   const result = await asyncRequestHandler(
     async (): Promise<IResponseObject> => {
-      // 1. Decrypt token or resolve by slug
       const decryptedDocId = decryptId(slugOrEncryptedId);
       const isObjectId = mongoose.isValidObjectId(decryptedDocId || slugOrEncryptedId);
 
@@ -421,7 +422,7 @@ export const getArticleBySlugOrId = async (
         };
       }
 
-      // Increment read counter on public viewing
+      // Increment reads
       if (mode === "view" && !article.draft) {
         await Promise.all([
           ArticleModel.findByIdAndUpdate(article._id, {
@@ -434,7 +435,6 @@ export const getArticleBySlugOrId = async (
         article.activity.totalReads += 1;
       }
 
-      // 🛡️ Convert to object, attach encrypted ID, and remove raw _id
       const articleObj = article.toObject();
       const sanitizedArticle = {
         ...articleObj,
@@ -459,16 +459,11 @@ export const getArticleBySlugOrId = async (
 /*                            DELETE ARTICLE                                  */
 /* -------------------------------------------------------------------------- */
 
-/**
- * Permanently removes an article and cascades deletions across comments,
- * notifications, and user author statistics. Resolves encrypted IDs safely.
- */
 export const deleteArticle = async (userId: string, slugOrEncryptedId: string) => {
   await dbConnection();
 
   const result = await asyncRequestHandler(
     async (): Promise<IResponseObject> => {
-      // 1. Decrypt token or resolve by slug
       const decryptedDocId = decryptId(slugOrEncryptedId);
       const isObjectId = mongoose.isValidObjectId(decryptedDocId || slugOrEncryptedId);
 
@@ -484,7 +479,6 @@ export const deleteArticle = async (userId: string, slugOrEncryptedId: string) =
         };
       }
 
-      // Check author authorization
       if (article.author.toString() !== userId.toString()) {
         const user = await UserModel.findById(userId).select("role");
         if (user?.role !== "administrator") {
@@ -495,7 +489,6 @@ export const deleteArticle = async (userId: string, slugOrEncryptedId: string) =
         }
       }
 
-      // Cascading cleanups
       await Promise.all([
         ArticleModel.findByIdAndDelete(article._id),
         CommentModel.deleteMany({ article: article._id }),

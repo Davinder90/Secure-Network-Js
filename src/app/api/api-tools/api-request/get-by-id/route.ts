@@ -5,7 +5,7 @@ import { NextRequest } from "next/server";
 
 
 export async function GET(req: NextRequest) {
-  const authResponse = await authenticateToken(req);
+  const authResponse = await authenticateToken(req, "api");
   if (authResponse) return authResponse;
   const { searchParams } = new URL(req.url);
   const apiId = searchParams.get("apiId") as string;

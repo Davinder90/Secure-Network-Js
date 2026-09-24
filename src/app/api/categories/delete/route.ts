@@ -9,8 +9,9 @@ import UserModel, { UserRole } from "@/src/models/user.model";
  */
 export async function DELETE(req: NextRequest) {
   // 1. Authenticate user
-  const authResponse = await authenticateToken(req);
+  const authResponse = await authenticateToken(req, "pass");
   if (authResponse) return authResponse;
+  console.log('delete');
 
   const userId = (req as IAuthTokenRequest).user.id;
   const user = await UserModel.findById(userId).select("role");

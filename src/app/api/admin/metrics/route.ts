@@ -5,7 +5,7 @@ import { getAdminMetrics } from "@/src/lib/services/admin";
 import UserModel, { UserRole } from "@/src/models/user.model";
 
 export async function GET(req: NextRequest) {
-  const authResponse = await authenticateToken(req);
+  const authResponse = await authenticateToken(req, "pass");
   if (authResponse) return authResponse;
 
   const adminId = (req as IAuthTokenRequest).user.id;

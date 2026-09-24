@@ -26,7 +26,7 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
  * PUT /api/articles/[id]
  */
 export async function PUT(req: NextRequest, { params }: RouteContext) {
-  const authResponse = await authenticateToken(req);
+  const authResponse = await authenticateToken(req, "articles");
   if (authResponse) return authResponse;
 
   const userId = (req as IAuthTokenRequest).user.id;
@@ -40,7 +40,7 @@ export async function PUT(req: NextRequest, { params }: RouteContext) {
  * DELETE /api/articles/[id]
  */
 export async function DELETE(req: NextRequest, { params }: RouteContext) {
-  const authResponse = await authenticateToken(req);
+  const authResponse = await authenticateToken(req, "articles");
   if (authResponse) return authResponse;
 
   const userId = (req as IAuthTokenRequest).user.id;

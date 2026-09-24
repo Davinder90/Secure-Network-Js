@@ -47,6 +47,8 @@ export default function LoginForm() {
           name: data?.result?.username,
           email: email,
           isAllowed: data?.result?.isAllowed,
+          role: data.result.role,
+          productAccess: data.result.productAccess
         })
       );
 

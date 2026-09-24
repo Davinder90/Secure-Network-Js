@@ -15,7 +15,7 @@ interface RouteContext {
  * Checks if current user has liked this article.
  */
 export async function GET(req: NextRequest, { params }: RouteContext) {
-  const authResponse = await authenticateToken(req);
+  const authResponse = await authenticateToken(req, "articles");
   if (authResponse) return authResponse;
 
   const userId = (req as IAuthTokenRequest).user.id;
@@ -29,7 +29,7 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
  * Toggles like / unlike on the article and sends notification to the author.
  */
 export async function POST(req: NextRequest, { params }: RouteContext) {
-  const authResponse = await authenticateToken(req);
+  const authResponse = await authenticateToken(req, "articles");
   if (authResponse) return authResponse;
 
   const userId = (req as IAuthTokenRequest).user.id;

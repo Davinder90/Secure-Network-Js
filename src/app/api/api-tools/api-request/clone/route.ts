@@ -5,7 +5,7 @@ import { NextRequest } from "next/server";
 
 
 export async function POST(req: NextRequest) {
-    const authResponse = await authenticateToken(req);
+    const authResponse = await authenticateToken(req, "api");
     if (authResponse) return authResponse;
     const {apiId, collectionId, name} = await req.json();
     const userId = (req as IAuthTokenRequest).user.id;

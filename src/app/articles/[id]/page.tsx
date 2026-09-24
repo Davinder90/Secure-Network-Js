@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import {
   HeartIcon,
   ChatBubbleLeftRightIcon,
@@ -22,12 +22,14 @@ import {
   handleCheckArticleLike,
   handleToggleArticleLike,
   handleGetArticles,
+  handleDeleteArticle,
 } from '@/src/requests/articles/articles';
 import { useSelector } from 'react-redux';
 import { RootState } from '@/src/redux-store/store';
 import ArticleBlockRenderer from '@/src/components/articles/ArticleBlockRenderer';
 import ArticleComments from '@/src/components/articles/ArticleComments';
 import AsyncBanner from '@/src/components/articles/AsyncImageBanner';
+import { TrashIcon } from 'lucide-react';
 
 interface ArticleData {
   id: string; // URL-safe encrypted ID token
@@ -68,9 +70,36 @@ export default function ArticleDetailsPage() {
   const [likeCount, setLikeCount] = useState(0);
   const [isAuthor, setIsAuthor] = useState(false);
   const [recommendations, setRecommendations] = useState<ArticleData[]>([]);
+  const router = useRouter();
+  const [isDeleting, setIsDeleting] = useState(false);
+  const user = useSelector((state: RootState) => state.user);
+  const canEdit = user.role === 'administrator' || (isAuthor && user.productAccess?.articles);
 
   // Redux-based username selection
   const loggedInUsername = useSelector((state: RootState) => state.user.name);
+
+  const onDeleteArticle = async () => {
+    if (!article) return;
+
+    const confirmed = window.confirm(
+      'Are you sure you want to permanently delete this article? All attached comments and discussions will be removed.'
+    );
+    if (!confirmed) return;
+
+    setIsDeleting(true);
+    const toastId = toast.loading('Deleting article...');
+
+    const res = await handleDeleteArticle(article.id || id);
+
+    if (res?.success) {
+      toast.success('Article deleted successfully!', { id: toastId });
+      router.replace('/articles');
+    } else {
+      toast.error(res?.error || res?.message || 'Failed to delete article', { id: toastId });
+      setIsDeleting(false);
+    }
+  };
+
 
   // 1. Fetch Relational Recommendations (Excludes active article)
   const fetchRecommendations = useCallback(async (categoryId?: string, currentDocId?: string) => {
@@ -193,13 +222,25 @@ export default function ArticleDetailsPage() {
             <ArrowLeftIcon className="h-3.5 w-3.5" /> Back to Articles
           </Link>
 
-          {isAuthor && (
-            <Link
-              href={`/articles/${article.id || id}/edit`}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-red-600 bg-white px-4 py-2 text-xs font-bold text-red-600 hover:bg-red-50 active:scale-95 transition shadow-sm"
-            >
-              <PencilSquareIcon className="h-4 w-4" /> Edit Article
-            </Link>
+          {canEdit && (
+            <div className="flex items-center gap-2">
+              <Link
+                href={`/articles/${article.id || id}/edit`}
+                className="inline-flex items-center gap-1.5 rounded-xl border-gray-300 bg-white px-3.5 py-2 text-xs font-bold text-gray-700 hover:border-black hover:text-black transition shadow-sm active:scale-95"
+              >
+                <PencilSquareIcon className="h-4 w-4 text-gray-500" /> Edit Article
+              </Link>
+
+              <button
+                type="button"
+                onClick={onDeleteArticle}
+                disabled={isDeleting}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2 text-xs font-bold text-red-700 hover:bg-red-600 hover:text-white transition shadow-sm active:scale-95 disabled:opacity-50"
+              >
+                <TrashIcon className="h-4 w-4" />
+                {isDeleting ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
           )}
         </div>
 

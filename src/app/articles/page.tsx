@@ -19,8 +19,9 @@ import {
   handleGetTrendingArticles,
   handleGetCategories,
 } from '@/src/requests/articles/articles';
-import { handleGetImage } from '@/src/requests/articles/image';
 import AsyncBanner from '@/src/components/articles/AsyncImageBanner';
+import { useSelector } from 'react-redux';
+import { RootState } from '@/src/redux-store/store';
 
 interface Author {
   name: string;
@@ -61,6 +62,9 @@ export default function ArticlesPage() {
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(false);
   const [page, setPage] = useState(1);
+
+  const user = useSelector((state: RootState) => state.user);
+  const canWriteArticles = user.role === 'administrator' || user.productAccess?.articles;
 
   // 1. Fetch Dynamic Categories
   const fetchCategories = useCallback(async () => {
@@ -141,14 +145,15 @@ export default function ArticlesPage() {
                 Explore in-depth networking analyses, DNS diagnostic workflows, vulnerability audits, and API integration guides.
               </p>
             </div>
-
-            <Link
-              href="/articles/create"
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-5 py-3 text-xs font-bold uppercase tracking-wider text-white shadow-sm transition hover:bg-red-700 active:scale-95 self-start md:self-auto"
-            >
-              <PencilSquareIcon className="h-4 w-4" />
-              Write an Article
-            </Link>
+              {canWriteArticles && (
+                <Link
+                  href="/articles/create"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-5 py-3 text-xs font-bold uppercase tracking-wider text-white shadow-sm transition hover:bg-red-700 active:scale-95 self-start md:self-auto"
+                >
+                  <PencilSquareIcon className="h-4 w-4" />
+                  Write an Article
+                </Link>
+              )}
           </div>
         </div>
 
@@ -204,7 +209,7 @@ export default function ArticlesPage() {
               {loading && articles.length === 0 ? (
                 <div className="flex min-h-[300px] flex-col items-center justify-center gap-3 rounded-xl border border-gray-200 bg-white p-8">
                   <ArrowPathIcon className="h-8 w-8 animate-spin text-red-600" />
-                  <p className="text-xs font-bold uppercase tracking-wide text-gray-600">Fetching Stories...</p>
+                  <p className="text-xs font-bold uppercase tracking-wide text-gray-600">Fetching Articles...</p>
                 </div>
               ) : (
                 <AnimatePresence mode="popLayout">
@@ -246,7 +251,7 @@ export default function ArticlesPage() {
 
                           <div className="mt-3.5 flex flex-col-reverse items-start justify-between gap-4 sm:flex-row">
                             <div className="flex-1 space-y-1.5">
-                              <Link href={`/articles/${art.articleId || art._id}`}>
+                              <Link href={`/articles/${art.id || art.articleId}`}>
                                 <h2 className="line-clamp-2 text-base font-bold tracking-tight text-black transition-colors group-hover:text-red-600 sm:text-lg">
                                   {art.title}
                                 </h2>
@@ -347,11 +352,11 @@ export default function ArticlesPage() {
               </div>
 
               <div className="mt-4 flex flex-wrap gap-2">
-                {categories.map((cat) => {
+                {categories.map((cat, index) => {
                   const isSelected = selectedTag === cat.name;
                   return (
                     <button
-                      key={cat._id}
+                      key={index}
                       onClick={() => handleTagClick(cat.name)}
                       className={`rounded-lg px-3 py-1.5 text-xs font-bold shadow-sm transition ${
                         isSelected

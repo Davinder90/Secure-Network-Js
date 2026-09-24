@@ -12,7 +12,7 @@ import { NotificationType } from "@/src/models/notification.model";
  * GET /api/notifications?page=1&limit=10&seen=false&type=like
  */
 export async function GET(req: NextRequest) {
-  const authResponse = await authenticateToken(req);
+  const authResponse = await authenticateToken(req, "articles");
   if (authResponse) return authResponse;
 
   const userId = (req as IAuthTokenRequest).user.id;
@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
  * Body: { notificationIds?: string[] }
  */
 export async function PATCH(req: NextRequest) {
-  const authResponse = await authenticateToken(req);
+  const authResponse = await authenticateToken(req, "articles");
   if (authResponse) return authResponse;
 
   const userId = (req as IAuthTokenRequest).user.id;
@@ -47,7 +47,7 @@ export async function PATCH(req: NextRequest) {
  * Purges all read notifications for the authenticated user.
  */
 export async function DELETE(req: NextRequest) {
-  const authResponse = await authenticateToken(req);
+  const authResponse = await authenticateToken(req, "articles");
   if (authResponse) return authResponse;
 
   const userId = (req as IAuthTokenRequest).user.id;

@@ -46,6 +46,7 @@ export default function ArticleEditPage() {
   const [initialBlocks, setInitialBlocks] = useState<{ blocks: any[] }>({ blocks: [] });
   const [isPublishOpen, setIsPublishOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [draft, setDraft] = useState<boolean>(false);
 
   // 1. Fetch Categories for Dropdown
   const fetchCategoryList = useCallback(async () => {
@@ -77,6 +78,7 @@ export default function ArticleEditPage() {
       // Handle category ID whether populated or raw string
       const resolvedCategoryId = art.category?._id || art.category || '';
       setCategory(resolvedCategoryId);
+      setDraft(Boolean(art.draft));
       
       // If there is an existing banner filename on the model, initialize imgObj
       if (art.banner && !art.banner.startsWith('data:') && !art.banner.startsWith('http')) {
@@ -118,8 +120,8 @@ export default function ArticleEditPage() {
     setTags(tags.filter((t) => t !== tagToRemove));
   };
 
-  // Submit Handler
-  const onUpdateArticle = async () => {
+// Submit Handler: supports saving as Draft OR Publishing
+  const onUpdateArticle = async (shouldBeDraft?: boolean) => {
     if (!title.trim() || title.length < 3) {
       toast.error('Article title is required (min 3 characters)');
       return;
@@ -127,31 +129,41 @@ export default function ArticleEditPage() {
 
     const editorData = editorRef.current ? await editorRef.current.handleSave() : { blocks: [] };
 
-    if (!editorData.blocks || editorData.blocks.length === 0) {
-      toast.error('Write article content before updating');
+    // Draft target state (uses parameter if passed, otherwise state)
+    const finalDraftStatus = shouldBeDraft !== undefined ? shouldBeDraft : draft;
+
+    if (!finalDraftStatus && (!editorData.blocks || editorData.blocks.length === 0)) {
+      toast.error('Cannot publish an article with empty content');
       return;
     }
 
     setSubmitting(true);
+    const toastId = toast.loading(finalDraftStatus ? 'Saving as draft...' : 'Updating article...');
+
     const res = await handleUpdateArticle(id, {
       title: title.trim(),
       description: description.trim(),
       banner: banner.trim(),
-      category: category || undefined, // Sends Mongoose Category reference ID
+      category: category || undefined,
       tags,
       content: [editorData],
-      draft: false, // Set to false since we are editing/publishing
+      draft: finalDraftStatus, // Sends dynamic draft status to backend
     });
 
     if (res?.success) {
-      toast.success('Article updated successfully!');
-      router.push(`/articles/${id}`);
+      toast.success(
+        finalDraftStatus
+          ? 'Article reverted to draft (hidden from public feed)'
+          : 'Article published live!',
+        { id: toastId }
+      );
+      router.push(finalDraftStatus ? '/profile' : `/articles/${id}`);
     } else {
-      toast.error(res?.error || 'Failed to update article');
+      toast.error(res?.error || 'Failed to update article', { id: toastId });
+      setSubmitting(false);
     }
-    setSubmitting(false);
   };
-
+  
   if (loading) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3">
@@ -166,7 +178,8 @@ export default function ArticleEditPage() {
       <Toaster position="top-right" />
 
       {/* Top Navbar */}
-      <header className="sticky top-0 z-20 flex items-center justify-between border-b border-gray-200 bg-white px-6 py-3.5 shadow-sm">
+       <header className="sticky top-0 z-20 flex items-center justify-between border-b border-gray-200 bg-white px-6 py-3.5 shadow-sm">
+        {/* Left Back Navigation */}
         <div className="flex items-center gap-4">
           <Link
             href={`/articles/${id}`}
@@ -178,15 +191,31 @@ export default function ArticleEditPage() {
           <span className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-red-600">
             <SparklesIcon className="h-4 w-4 text-red-600" /> Edit Article
           </span>
+          {draft && (
+            <span className="rounded bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-800 border border-amber-200">
+              Draft Mode
+            </span>
+          )}
         </div>
 
-        <div className="flex items-center gap-3">
+        {/* Right Action Buttons */}
+        <div className="flex items-center gap-2">
+          {/* Quick Draft Save Button */}
+          <button
+            type="button"
+            onClick={() => onUpdateArticle(true)}
+            disabled={submitting}
+            className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-xs font-bold text-gray-700 hover:bg-gray-100 active:scale-95 transition"
+          >
+            Save as Draft
+          </button>
+
           <button
             type="button"
             onClick={() => setIsPublishOpen(true)}
             className="inline-flex items-center gap-1.5 rounded-xl bg-red-600 px-5 py-2 text-xs font-bold text-white shadow-sm hover:bg-red-700 active:scale-95 transition"
           >
-            <DocumentArrowUpIcon className="h-4 w-4" /> Save Settings & Update
+            <DocumentArrowUpIcon className="h-4 w-4" /> Publish Settings
           </button>
         </div>
       </header>
@@ -226,18 +255,33 @@ export default function ArticleEditPage() {
       {isPublishOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
           <div className="w-full max-w-lg space-y-4 rounded-2xl border border-gray-300 bg-white p-6 shadow-2xl animate-fadeIn">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <h3 className="text-sm font-black uppercase tracking-wider text-black">
-                Article Settings & SEO
-              </h3>
-              <button
-                type="button"
-                onClick={() => setIsPublishOpen(false)}
-                className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-black"
-              >
-                <XMarkIcon className="h-5 w-5" />
-              </button>
+            {/* Publication Status Toggle (Draft vs Published) */}
+            <div className="rounded-xl border border-gray-200 bg-gray-50 p-3.5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="block text-xs font-bold text-black uppercase tracking-wide">
+                    Visibility Status
+                  </label>
+                  <p className="text-[11px] text-gray-500">
+                    {draft
+                      ? 'Article is in Draft (hidden from public feeds).'
+                      : 'Article is Published (visible to all users).'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDraft(!draft)}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-bold transition shadow-sm ${
+                    draft
+                      ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                      : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                  }`}
+                >
+                  {draft ? 'Set to Live / Published' : 'Revert to Draft'}
+                </button>
+              </div>
             </div>
+
 
             {/* Description (max 300 in schema) */}
             <div>
@@ -317,7 +361,7 @@ export default function ArticleEditPage() {
               </button>
               <button
                 type="button"
-                onClick={onUpdateArticle}
+                onClick={() => { onUpdateArticle(draft)}}
                 disabled={submitting}
                 className="inline-flex items-center gap-1.5 rounded-xl bg-red-600 px-5 py-2 text-xs font-bold text-white shadow-sm hover:bg-red-700 active:scale-95 transition"
               >

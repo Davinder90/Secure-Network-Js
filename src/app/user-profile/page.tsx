@@ -26,10 +26,58 @@ import {
   PlusIcon,
   HeartIcon,
   ChatBubbleLeftRightIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
 } from '@heroicons/react/24/outline';
-import { getLocalStorage } from '@/src/lib/helpers/localStorage';
-import { handleGetUserProfile, handleChangeProfilePassword, handleUpdateUserProfile } from '@requests/user/auth';
-import { UserProfileData} from "@interfaces/user/userProfile.interfaces"
+import {
+  handleGetUserProfile,
+  handleChangeProfilePassword,
+  handleUpdateUserProfile,
+} from '@/src/requests/user/auth';
+
+interface ArticleItem {
+  id: string; // URL-safe encrypted ID
+  articleId: string;
+  title: string;
+  description?: string;
+  banner?: string;
+  publishedAt?: string;
+  activity?: {
+    totalLikes?: number;
+    totalReads?: number;
+    totalComments?: number;
+  };
+}
+
+interface UserProfileData {
+  id?: string;
+  name: string;
+  username: string;
+  email: string;
+  avatar: string;
+  bio?: string;
+  jobTitle?: string;
+  department?: string;
+  phone?: string;
+  role: 'user' | 'administrator';
+  isAllowed: boolean;
+  isEmailVerified: boolean;
+  productAccess: {
+    networking: boolean;
+    security: boolean;
+    api: boolean;
+    articles: boolean;
+    cloud: boolean;
+  };
+  socialLinks: Record<string, string>;
+  articleStats: {
+    totalArticles: number;
+    totalReads: number;
+    totalLikes: number;
+  };
+  articles: ArticleItem[];
+  createdAt: string;
+}
 
 const DEFAULT_USER: UserProfileData = {
   name: '',
@@ -66,6 +114,12 @@ export default function UserProfilePage() {
   const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'articles' | 'security'>('overview');
   const [user, setUser] = useState<UserProfileData>(DEFAULT_USER);
 
+  // Pagination states
+  const [articlePage, setArticlePage] = useState<number>(1);
+  const [totalPages, setTotalPages] = useState<number>(1);
+  const [totalArticlesCount, setTotalArticlesCount] = useState<number>(0);
+  const [articleLoading, setArticleLoading] = useState<boolean>(false);
+
   // In-place Profile Edit Form State
   const [editFormData, setEditFormData] = useState({
     name: '',
@@ -88,13 +142,12 @@ export default function UserProfilePage() {
   const [showPass, setShowPass] = useState(false);
   const [passLoading, setPassLoading] = useState(false);
 
-  const fetchProfile = useCallback(async () => {
-    setLoading(true);
-    const stored = getLocalStorage('sn-userInfo');
-    const token = stored?.access_token;
+  const fetchProfile = useCallback(async (page: number = 1) => {
+    if (page === 1) setLoading(true);
+    else setArticleLoading(true);
 
     try {
-      const response = await handleGetUserProfile();
+      const response = await handleGetUserProfile(page, 5);
       if (response?.success && response?.result) {
         const profile = response.result;
         setUser({
@@ -114,6 +167,13 @@ export default function UserProfilePage() {
           articles: profile.articles || [],
         });
 
+        // Sync pagination metadata
+        if (profile.pagination) {
+          setTotalPages(profile.pagination.totalPages || 1);
+          setTotalArticlesCount(profile.pagination.totalArticles || 0);
+          setArticlePage(profile.pagination.currentPage || 1);
+        }
+
         // Initialize Edit Form
         setEditFormData({
           name: profile.name || '',
@@ -128,78 +188,90 @@ export default function UserProfilePage() {
         });
       }
     } catch (err) {
+      console.error(err);
     } finally {
       setLoading(false);
+      setArticleLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchProfile();
+    fetchProfile(1);
   }, [fetchProfile]);
 
-  // Roll new avatar seed
+  const handlePageChange = (newPage: number) => {
+    if (newPage < 1 || newPage > totalPages) return;
+    setArticlePage(newPage);
+    fetchProfile(newPage);
+  };
+
   const handleRandomizeAvatar = () => {
     const randomSeed = Math.random().toString(36).substring(7);
     const newAvatarUrl = `https://api.dicebear.com/7.x/notionists-neutral/svg?seed=${randomSeed}`;
     setEditFormData((prev) => ({ ...prev, avatar: newAvatarUrl }));
   };
 
-  // Save Profile Handler (in-place)
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     const data = {
-          name: editFormData.name,
-          bio: editFormData.bio,
-          jobTitle: editFormData.jobTitle,
-          department: editFormData.department,
-          phone: editFormData.phone,
-          avatar: editFormData.avatar,
-          socialLinks: {
-            github: editFormData.github,
-            linkedin: editFormData.linkedin,
-            website: editFormData.website,
-          },
-        }
-    const result = await handleUpdateUserProfile(data)
+      name: editFormData.name,
+      bio: editFormData.bio,
+      jobTitle: editFormData.jobTitle,
+      department: editFormData.department,
+      phone: editFormData.phone,
+      avatar: editFormData.avatar,
+      socialLinks: {
+        github: editFormData.github,
+        linkedin: editFormData.linkedin,
+        website: editFormData.website,
+      },
+    };
+    const result = await handleUpdateUserProfile(data);
 
-    if(result.success){
-      return toast.success(result.message)
+    if (result.success) {
+      toast.success(result.message || 'Profile updated successfully!');
+      setIsEditing(false);
+      fetchProfile(articlePage);
+      return;
     }
-    return toast.error(result.error)
+    toast.error(result.error || result.message || 'Failed to update profile');
   };
 
-  // Change Password Handler
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (passwordState.currentPassword.length < 6) {
       toast.error('Current password must be at least 6 characters long');
       return;
     }
-    
+
     if (passwordState.newPassword === passwordState.currentPassword) {
-      toast.error("New password cannot be the same as the current password");
+      toast.error('New password cannot be the same as the current password');
       return;
     }
-    
-    
+
     if (passwordState.newPassword !== passwordState.confirmPassword) {
       toast.error('New passwords do not match');
       return;
     }
-    
+
     if (passwordState.newPassword.length < 6) {
       toast.error('New password must be at least 6 characters long');
       return;
     }
-    
+
     setPassLoading(true);
-    const result = await handleChangeProfilePassword({currentPassword: passwordState.currentPassword, newPassword: passwordState.newPassword});
+    const result = await handleChangeProfilePassword({
+      currentPassword: passwordState.currentPassword,
+      newPassword: passwordState.newPassword,
+    });
     setPassLoading(false);
-    if(result.success){
-      return toast.success(result.message)
+
+    if (result.success) {
+      setPasswordState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      return toast.success(result.message || 'Password updated successfully!');
     }
-    return toast.error(result.error)
+    return toast.error(result.error || result.message || 'Failed to update password');
   };
 
   const productModules = [
@@ -262,14 +334,12 @@ export default function UserProfilePage() {
     <div className="min-h-screen bg-gray-100 pb-20 pt-6 text-black">
       <div className="mx-auto max-w-4xl px-4 sm:px-6">
 
-        {/* Top Profile Summary Card */}
+        {/* Profile Card Header */}
         <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-          {/* Header Accent Band */}
           <div className="h-16 w-full bg-gradient-to-r from-red-600 via-black to-blue-700" />
 
           <div className="px-6 pb-6 pt-0">
             <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between gap-4 -mt-8">
-              {/* Avatar + Main Info */}
               <div className="flex items-end gap-4">
                 <div className="relative h-20 w-20 overflow-hidden rounded-xl border-4 border-white bg-gray-50 shadow-md">
                   <img
@@ -298,7 +368,6 @@ export default function UserProfilePage() {
                 </div>
               </div>
 
-              {/* In-Place Edit / Cancel Toggle Button */}
               <div className="flex items-center gap-2 self-stretch sm:self-auto mb-0.5">
                 <button
                   type="button"
@@ -322,7 +391,6 @@ export default function UserProfilePage() {
               </div>
             </div>
 
-            {/* Quick Metadata Strip */}
             <div className="mt-4 flex flex-wrap items-center gap-y-2 gap-x-5 border-t border-gray-100 pt-3 text-xs text-gray-600">
               <span className="inline-flex items-center gap-1 font-bold text-black">
                 <span className="h-2 w-2 rounded-full bg-red-600" />
@@ -348,12 +416,12 @@ export default function UserProfilePage() {
           </div>
         </div>
 
-        {/* Quick Stats Banner */}
+        {/* Quick Stats Grid */}
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
             <p className="text-xs font-bold uppercase tracking-wider text-gray-500">Articles</p>
             <p className="mt-1 text-2xl font-black text-black">
-              {user.articleStats.totalArticles}
+              {totalArticlesCount || user.articleStats.totalArticles}
             </p>
           </div>
           <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -386,7 +454,7 @@ export default function UserProfilePage() {
           </div>
         </div>
 
-        {/* Main Content Tabs */}
+        {/* Navigation Tabs */}
         <div className="mt-6 flex border-b border-gray-300 text-sm font-semibold">
           <button
             onClick={() => setActiveTab('overview')}
@@ -416,7 +484,7 @@ export default function UserProfilePage() {
                 : 'border-transparent text-gray-600 hover:text-black'
             }`}
           >
-            My Articles ({user.articles?.length || user.articleStats.totalArticles})
+            My Articles ({totalArticlesCount || user.articleStats.totalArticles})
           </button>
           <button
             onClick={() => setActiveTab('security')}
@@ -432,12 +500,10 @@ export default function UserProfilePage() {
 
         {/* Tab Panels */}
         <div className="mt-5">
-
-          {/* TAB 1: OVERVIEW & IN-PLACE EDITOR */}
+          {/* TAB 1: OVERVIEW */}
           {activeTab === 'overview' && (
             <div>
               {isEditing ? (
-                /* IN-PLACE EDIT FORM */
                 <form onSubmit={handleSaveProfile} className="space-y-4 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
                   <div className="flex items-center justify-between border-b border-gray-100 pb-3">
                     <h2 className="text-sm font-bold text-black uppercase tracking-wide">Edit Profile Data</h2>
@@ -504,7 +570,6 @@ export default function UserProfilePage() {
                     />
                   </div>
 
-                  {/* Social Handles */}
                   <div className="border-t border-gray-100 pt-3">
                     <p className="text-xs font-bold text-black mb-2 uppercase tracking-wide">Social & External Links</p>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -549,7 +614,6 @@ export default function UserProfilePage() {
                   </div>
                 </form>
               ) : (
-                /* STATIC VIEW CARDS */
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
                     <h3 className="text-xs font-bold uppercase tracking-wider text-red-600">
@@ -606,7 +670,6 @@ export default function UserProfilePage() {
                     </div>
                   )}
 
-                  {/* Social links row */}
                   {Object.values(user.socialLinks).some(Boolean) && (
                     <div className="sm:col-span-2 flex flex-wrap gap-2">
                       {Object.entries(user.socialLinks).map(([platform, link]) =>
@@ -691,7 +754,7 @@ export default function UserProfilePage() {
             </div>
           )}
 
-          {/* TAB 3: ARTICLES UI */}
+          {/* TAB 3: ARTICLES UI WITH PAGINATION */}
           {activeTab === 'articles' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -707,46 +770,81 @@ export default function UserProfilePage() {
                 </Link>
               </div>
 
-              {user.articles && user.articles.length > 0 ? (
-                <div className="grid grid-cols-1 gap-3">
-                  {user.articles.map((art, idx) => (
-                    <div
-                      key={art._id || art.articleId || idx}
-                      className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm hover:border-gray-400 transition"
-                    >
-                      <div className="space-y-1">
-                        <Link
-                          href={`/articles/${art.articleId || art._id}`}
-                          className="text-sm font-bold text-black hover:text-red-600 transition line-clamp-1"
-                        >
-                          {art.title}
-                        </Link>
-                        {art.description && (
-                          <p className="text-xs text-gray-600 line-clamp-2 max-w-xl">
-                            {art.description}
+              {articleLoading ? (
+                <div className="flex justify-center py-12">
+                  <ArrowPathIcon className="h-7 w-7 animate-spin text-red-600" />
+                </div>
+              ) : user.articles && user.articles.length > 0 ? (
+                <>
+                  <div className="grid grid-cols-1 gap-3">
+                    {user.articles.map((art, idx) => (
+                      <div
+                        key={art.id || idx}
+                        className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm hover:border-gray-400 transition"
+                      >
+                        <div className="space-y-1">
+                          {/* 🛡️ Uses encrypted ID (or articleId slug) to prevent exposing MongoDB _id */}
+                          <Link
+                            href={`/articles/${art.id || art.articleId}`}
+                            className="text-sm font-bold text-black hover:text-red-600 transition line-clamp-1"
+                          >
+                            {art.title}
+                          </Link>
+                          {art.description && (
+                            <p className="text-xs text-gray-600 line-clamp-2 max-w-xl">
+                              {art.description}
+                            </p>
+                          )}
+                          <p className="text-[11px] font-medium text-gray-400">
+                            Published: {art.publishedAt ? new Date(art.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recently'}
                           </p>
-                        )}
-                        <p className="text-[11px] font-medium text-gray-400">
-                          Published: {art.publishedAt ? new Date(art.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recently'}
-                        </p>
-                      </div>
+                        </div>
 
-                      <div className="flex items-center gap-4 text-xs font-bold text-gray-600 border-t sm:border-t-0 pt-2 sm:pt-0 w-full sm:w-auto justify-end">
-                        <span className="inline-flex items-center gap-1">
-                          <EyeIcon className="h-4 w-4 text-blue-600" /> {art.activity?.totalReads || 0}
-                        </span>
-                        <span className="inline-flex items-center gap-1">
-                          <HeartIcon className="h-4 w-4 text-red-600" /> {art.activity?.totalLikes || 0}
-                        </span>
-                        <span className="inline-flex items-center gap-1">
-                          <ChatBubbleLeftRightIcon className="h-4 w-4 text-gray-400" /> {art.activity?.totalComments || 0}
-                        </span>
+                        <div className="flex items-center gap-4 text-xs font-bold text-gray-600 border-t sm:border-t-0 pt-2 sm:pt-0 w-full sm:w-auto justify-end">
+                          <span className="inline-flex items-center gap-1">
+                            <EyeIcon className="h-4 w-4 text-blue-600" /> {art.activity?.totalReads || 0}
+                          </span>
+                          <span className="inline-flex items-center gap-1">
+                            <HeartIcon className="h-4 w-4 text-red-600" /> {art.activity?.totalLikes || 0}
+                          </span>
+                          <span className="inline-flex items-center gap-1">
+                            <ChatBubbleLeftRightIcon className="h-4 w-4 text-gray-400" /> {art.activity?.totalComments || 0}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* 📄 Pagination Navigation Bar */}
+                  {totalPages > 1 && (
+                    <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 rounded-xl shadow-sm mt-4 text-xs">
+                      <span className="text-gray-500 font-medium">
+                        Showing page <span className="font-bold text-black">{articlePage}</span> of{' '}
+                        <span className="font-bold text-black">{totalPages}</span>
+                      </span>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handlePageChange(articlePage - 1)}
+                          disabled={articlePage <= 1}
+                          className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                        >
+                          <ChevronLeftIcon className="h-3.5 w-3.5" /> Previous
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handlePageChange(articlePage + 1)}
+                          disabled={articlePage >= totalPages}
+                          className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                        >
+                          Next <ChevronRightIcon className="h-3.5 w-3.5" />
+                        </button>
                       </div>
                     </div>
-                  ))}
-                </div>
+                  )}
+                </>
               ) : (
-                /* Fallback Article Feed */
                 <div className="rounded-xl border border-dashed border-gray-300 bg-white p-8 text-center">
                   <DocumentTextIcon className="mx-auto h-8 w-8 text-gray-400" />
                   <p className="mt-2 text-xs font-bold text-black">No articles published yet</p>
@@ -762,7 +860,7 @@ export default function UserProfilePage() {
             </div>
           )}
 
-          {/* TAB 4: SECURITY & CHANGE PASSWORD */}
+          {/* TAB 4: SECURITY */}
           {activeTab === 'security' && (
             <div className="max-w-xl rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
               <div className="flex items-center gap-3 border-b border-gray-100 pb-4">
@@ -836,7 +934,6 @@ export default function UserProfilePage() {
               </form>
             </div>
           )}
-
         </div>
       </div>
     </div>

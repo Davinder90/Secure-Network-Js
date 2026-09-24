@@ -14,6 +14,7 @@ import {
 import UserModel, { UserAccountStatus, UserRole } from "@/src/models/user.model";
 import ArticleModel from "@/src/models/article.model"
 import { dbConnection } from "@/src/config/dbConnection";
+import { encryptId } from "../helpers/crypto.helper";
 
 /**
  * Generates an iterative, collision-free username based on the user's name.
@@ -279,7 +280,11 @@ export const getUserAllowance = async (userId: string) => {
 /**
  * Retrieves the full profile details of the authenticated user.
  */
-export const getMyProfile = async (userId: string) => {
+export const getMyProfile = async (
+  userId: string,
+  page: number = 1,
+  limit: number = 5
+) => {
   await dbConnection();
 
   const result = await asyncRequestHandler(
@@ -291,15 +296,14 @@ export const getMyProfile = async (userId: string) => {
         };
       }
 
-      // 2. Explicitly specify `model: ArticleModel` in populate
+      const validatedPage = Math.max(1, Number(page) || 1);
+      const validatedLimit = Math.max(1, Math.min(20, Number(limit) || 5));
+      const skip = (validatedPage - 1) * validatedLimit;
+
+      // 1. Fetch user profile data excluding sensitive fields
       const user = await UserModel.findById(userId)
-        .select("-password -_id")
-        .populate({
-          path: "articles",
-          model: ArticleModel, // Prevents MissingSchemaError
-          select: "title description banner activity publishedAt",
-          options: { limit: 5, sort: { createdAt: -1 } },
-        });
+        .select("-password")
+        .lean();
 
       if (!user) {
         return {
@@ -308,10 +312,46 @@ export const getMyProfile = async (userId: string) => {
         };
       }
 
+      // 2. Query paginated articles authored by this user
+      const [articles, totalArticles] = await Promise.all([
+        ArticleModel.find({ author: new mongoose.Types.ObjectId(userId) })
+          .select("title description banner activity publishedAt articleId draft")
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(validatedLimit)
+          .lean(),
+        ArticleModel.countDocuments({ author: new mongoose.Types.ObjectId(userId) }),
+      ]);
+
+      // 3. Encrypt article IDs before sending them to the client
+      const encryptedArticles = articles.map((art: any) => {
+        const { _id, ...rest } = art;
+        return {
+          ...rest,
+          id: encryptId(_id),
+        };
+      });
+
+      const totalPages = Math.ceil(totalArticles / validatedLimit);
+
+      // 4. Encrypt user ID and structure response
+      const { _id, ...sanitizedUser } = user as any;
+
       return {
         message: "Profile retrieved successfully",
         status_code: StatusCodes.OK,
-        data: user,
+        data: {
+          ...sanitizedUser,
+          id: encryptId(_id),
+          articles: encryptedArticles,
+          pagination: {
+            currentPage: validatedPage,
+            totalPages,
+            totalArticles,
+            limit: validatedLimit,
+            hasMore: validatedPage < totalPages,
+          },
+        },
       };
     },
     "DATABASE_ERROR: Failed to retrieve profile",
@@ -320,7 +360,6 @@ export const getMyProfile = async (userId: string) => {
 
   return generateResponseObject(result as IResponseObject);
 };
-
 
 /**
  * Updates profile details for the authenticated user.

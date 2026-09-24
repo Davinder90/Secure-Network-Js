@@ -10,7 +10,7 @@ import { StatusCodes } from "http-status-codes";
  */
 export async function DELETE(req: NextRequest): Promise<NextResponse> {
   // 1. Authenticate JWT session token
-  const authResponse = await authenticateToken(req);
+  const authResponse = await authenticateToken(req, "articles");
   if (authResponse) return authResponse as NextResponse;
 
   // 2. Extract sanitized filename from searchParams query parameters

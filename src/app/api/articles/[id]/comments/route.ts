@@ -30,7 +30,7 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
  * Body: { comment: string, parentCommentId?: string, childrenLevel?: number }
  */
 export async function POST(req: NextRequest, { params }: RouteContext) {
-  const authResponse = await authenticateToken(req);
+  const authResponse = await authenticateToken(req, "articles");
   if (authResponse) return authResponse;
 
   const userId = (req as IAuthTokenRequest).user.id;
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
  * Recursively deletes a comment and its child replies.
  */
 export async function DELETE(req: NextRequest) {
-  const authResponse = await authenticateToken(req);
+  const authResponse = await authenticateToken(req, "articles");
   if (authResponse) return authResponse;
 
   const userId = (req as IAuthTokenRequest).user.id;

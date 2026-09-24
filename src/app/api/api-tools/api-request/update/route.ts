@@ -7,7 +7,7 @@ import { StatusCodes } from "http-status-codes";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function PUT(req: NextRequest) {
-  const authResponse = await authenticateToken(req);
+  const authResponse = await authenticateToken(req, "api");
   if (authResponse) return authResponse;
   const body = await req.json();
   const validationError = await validateSchema(body, ApiSchema);

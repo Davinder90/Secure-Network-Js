@@ -1,10 +1,7 @@
 import { NextRequest } from "next/server";
 import { authenticateToken } from "@/src/lib/middleware/auth.middleware";
 import { IAuthTokenRequest } from "@/src/lib/interfaces/common.interfaces";
-import {
-  createCategory,
-  seedDefaultCategories,
-} from "@/src/lib/services/category";
+import {createCategory} from "@/src/lib/services/category";
 import UserModel, { UserRole } from "@/src/models/user.model";
 
 
@@ -14,7 +11,7 @@ import UserModel, { UserRole } from "@/src/models/user.model";
  */
 export async function POST(req: NextRequest) {
   // 1. Authenticate user
-  const authResponse = await authenticateToken(req);
+  const authResponse = await authenticateToken(req, "pass");
   if (authResponse) return authResponse;
 
   const userId = (req as IAuthTokenRequest).user.id;
@@ -29,11 +26,6 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-
-  // 3. Handle seed trigger or standard creation
-  if (body?.action === "seed") {
-    return await seedDefaultCategories();
-  }
 
   return await createCategory(body);
 }

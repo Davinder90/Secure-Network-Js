@@ -16,12 +16,11 @@ import {
 import { encryptId, decryptId } from "@/src/lib/helpers/crypto.helper"; 
 
 /* -------------------------------------------------------------------------- */
-/*                            GET ALL CATEGORIES                              */
+/*                                GET ALL CATEGORIES                          */
 /* -------------------------------------------------------------------------- */
 
 /**
- * Retrieves all active categories (ordered by article count and creation date).
- * Replaces raw MongoDB _id with URL-safe encrypted tokens.
+ * Retrieves all categories.
  */
 export const getCategories = async (onlyActive: boolean = true) => {
   await dbConnection();
@@ -37,13 +36,12 @@ export const getCategories = async (onlyActive: boolean = true) => {
         })
         .lean();
 
-      // 🛡️ Map encrypted IDs and strip private _id
+      // Map encrypted IDs and strip private _id
       const sanitizedCategories = categories.map((cat: any) => {
         const { _id, ...rest } = cat;
         return {
           ...rest,
           id: encryptId(_id),
-          _id: encryptId(_id), // Backward-compatible alias for frontend keys
         };
       });
 
@@ -65,7 +63,7 @@ export const getCategories = async (onlyActive: boolean = true) => {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Creates a new category and returns it with an encrypted ID.
+ * Creates a new category.
  */
 export const createCategory = async (payload: ICreateCategoryPayload) => {
   await dbConnection();
@@ -153,7 +151,7 @@ export const updateCategory = async (
         };
       }
 
-      // If updating name, regenerate slug if not explicitly passed
+      // If updating name, dynamically regenerate its slug
       const updates: Record<string, unknown> = { ...updateData };
       if (updateData.name && !updateData.slug) {
         updates.slug = updateData.name
@@ -267,58 +265,6 @@ export const deleteCategory = async (
       };
     },
     "DATABASE_ERROR: Failed to delete category",
-    StatusCodes.INTERNAL_SERVER_ERROR
-  );
-
-  return generateResponseObject(result as IResponseObject);
-};
-
-/* -------------------------------------------------------------------------- */
-/*                          SEED DEFAULT CATEGORIES                           */
-/* -------------------------------------------------------------------------- */
-
-/**
- * Seeds baseline default network/tech categories if database is empty.
- */
-export const seedDefaultCategories = async () => {
-  await dbConnection();
-
-  const defaultCategories = [
-    { name: "Networking", description: "DNS, IP routing, subnetting, and connectivity probes.", isFeatured: true },
-    { name: "DNS & DNSSEC", description: "Authoritative zones, resource records, and cryptographic trust chains.", isFeatured: true },
-    { name: "Security Auditing", description: "TLS certificate checks, vulnerability discovery, and security headers.", isFeatured: true },
-    { name: "API Testing", description: "HTTP mock runners, payload validation, and REST/GraphQL debugging.", isFeatured: true },
-    { name: "Cloud & Kubernetes", description: "CNI plugins, overlay networks, ingress controllers, and VPC routing.", isFeatured: false },
-    { name: "Protocols", description: "TCP, UDP, BGP, ICMP, and QUIC packet-level analysis.", isFeatured: false },
-    { name: "Troubleshooting", description: "Latency resolution, packet loss diagnostics, and traceroute analysis.", isFeatured: false },
-    { name: "Architecture", description: "Zero-trust network architecture, telemetry pipelines, and gateways.", isFeatured: false },
-  ];
-
-  const result = await asyncRequestHandler(
-    async (): Promise<IResponseObject> => {
-      const count = await CategoryModel.countDocuments();
-      if (count > 0) {
-        return {
-          message: "Categories already seeded",
-          status_code: StatusCodes.OK,
-          data: { count },
-        };
-      }
-
-      const inserted = await CategoryModel.insertMany(defaultCategories);
-
-      const sanitized = inserted.map((cat: any) => ({
-        ...cat.toObject(),
-        id: encryptId(cat._id),
-      }));
-
-      return {
-        message: "Default categories seeded successfully",
-        status_code: StatusCodes.CREATED,
-        data: sanitized,
-      };
-    },
-    "DATABASE_ERROR: Failed to seed categories",
     StatusCodes.INTERNAL_SERVER_ERROR
   );
 

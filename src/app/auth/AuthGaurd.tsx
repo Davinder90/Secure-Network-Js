@@ -263,7 +263,7 @@ const AccessDenied = ({ username, email, setState }: AccessDeniedProps) => {
             Unauthorized Account
           </h1>
           <p className="text-xs text-gray-500 leading-relaxed">
-            This workspace is restricted. The account below does not have permission to view this page.
+            This Application is restricted. The account below does not have permission to view this page.
           </p>
         </div>
 
@@ -311,7 +311,7 @@ export default function ClientAuthGaurd({
     if (!success && message) {
       toast.error(message);
     }
-    return [success, allowed] as const;
+    return [success, allowed, result.role, result.productAccess] as const;
   }, []);
 
   useEffect(() => {
@@ -341,13 +341,11 @@ export default function ClientAuthGaurd({
         router.replace('/');
         return;
       }
-
       // 4. Validate Allowance on protected routes
       try {
-        const [success, allowed] = await handleIsAllowed();
+        const [success, allowed, role, productAccess] = await handleIsAllowed();
         if (success) {
-          setUserInfo({ username, email });
-          dispatch(login({ name: username, email, isAllowed: allowed }));
+          dispatch(login({ name: username, email, isAllowed: allowed, role, productAccess}));
           setState(allowed ? 'access' : 'not-access');
         } else {
           removeLocalStorage('sn-userInfo');
@@ -358,8 +356,8 @@ export default function ClientAuthGaurd({
       } catch {
         setState('not-access');
       }
+      setUserInfo({ username, email });
     };
-
     checkAuth();
   }, [pathname, router, handleIsAllowed, dispatch]);
 

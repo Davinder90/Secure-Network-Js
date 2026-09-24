@@ -4,7 +4,7 @@ import { IAuthTokenRequest } from "@/src/lib/interfaces/common.interfaces";
 import { changePassword } from "@services/user";
 
 export async function POST(req: NextRequest) {
-  const authResponse = await authenticateToken(req);
+  const authResponse = await authenticateToken(req, "pass");
   if (authResponse) return authResponse;
   const userId = (req as IAuthTokenRequest).user.id;
   const body = await req.json();
